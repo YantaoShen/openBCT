@@ -194,9 +194,7 @@ def main_worker(gpu, ngpus_per_node, args):
         print('==> Using {} for loading data!'.format(args.train_img_list))
     if args.use_feat or args.cross_eval:
         cls_num = 0
-        print('==> Using Feature distance, no classifier!')
-    else:
-        print('==> Total {} classes!'.format(cls_num))
+    print('==> Total {} classes!'.format(cls_num))
 
     val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, transforms.Compose([
