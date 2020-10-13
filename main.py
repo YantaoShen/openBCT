@@ -384,7 +384,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
     top5 = AverageMeter('Acc@5', ':6.2f')
 
     if args.old_fc is not None:
-        n2o_map = pickle.load(open(args.n2o_map, "rb")) if args.n2o_map is not None else None
+        n2o_map = np.load(args.n2o_map, allow_pickle=True).item() if args.n2o_map is not None else None
         old_losses = AverageMeter('Old Loss', ':.4e')
         progress = ProgressMeter(
             len(train_loader),
@@ -441,8 +441,12 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
             if n2o_map is not None:
                 for ind, t in enumerate(target):
                     if int(t) in n2o_map:
-                        o_target.append(t)
+                        o_target.append(n2o_map[int(t)])
                         valid_ind.append(ind)
+                if torch.cuda.is_available():
+                    o_target = torch.LongTensor(o_target).cuda()
+                else:
+                    o_target = torch.LongTensor(o_target)
             else:
                 # If there is no overlap, please use learning without forgetting,
                 # or create pseudo old classifier with feature extraction.

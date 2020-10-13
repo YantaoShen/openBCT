@@ -19,15 +19,11 @@
 * sklearn
 * easydict
 
-
-
 ## Datasets
 
 This code conducts training and evaluation on [ImageNet LSVRC 2012](http://image-net.org/challenges/LSVRC/2012/) and [Places365](http://places2.csail.mit.edu/download.html)(easy directory structure) datasets. Please be noticed that, due to the privacy issue, this code will NOT provide the train and test code for face datasets in our CVPR 2020 paper.
 
 After you download these two datasets, extract them and make sure there are ./train and ./val folders inside. You can find the training image lists we use from [Google Drive Link](https://drive.google.com/drive/folders/169L3zAxJj_e1_BAZNvvR4IIy0cdbtC4E?usp=sharing) or [Weiyun Link](https://share.weiyun.com/zbdtIhlO).
-
-
 
 ## Train
 
@@ -40,7 +36,7 @@ python main.py your_dataset_dir --train-img-list imgnet_train_img_list_for_old.t
 For training a new model with infulence loss (old classifier regularization),
 
 ```shell
-python main.py your_dataset_dir --train-img-list imgnet_train_img_list_for_new.txt -a resnet50 --old-fc your_old_fc_weights_dir
+python main.py your_dataset_dir --train-img-list imgnet_train_img_list_for_new.txt -a resnet50 --old-fc your_old_fc_weights_dir --n2o-map ./imgnet_new2old_map.npy
 ```
 
 For training a new model with L2 regression loss (one of the compared baseline),
@@ -48,8 +44,6 @@ For training a new model with L2 regression loss (one of the compared baseline),
 ```shell
 python main.py your_dataset_dir --train-img-list imgnet_train_img_list_for_new.txt -a resnet50 --old-arch resnet18 --old-checkpoint your_old_model_dir --old-fc your_old_fc_weights_dir --l2 --use-feat
 ```
-
-
 
 ## Test
 
@@ -65,8 +59,6 @@ For self test with single model,
 python main.py your_dataset_dir -a resnet50 --pretrained --checkpoint your_model_dir --use-feat -e
 ```
 
-
-
 ## Results
 
 Influence loss results on ImagNet are listed as below, More results are on the way.
@@ -79,13 +71,9 @@ Influence loss results on ImagNet are listed as below, More results are on the w
 
 (x% denotes the training data usage amount)
 
-
-
 ## Acknowledgement
 
 The code is based on [Open-ReID](https://github.com/Cysu/open-reid) and [Pytorch-ImageNet-Example](https://github.com/pytorch/examples/tree/master/imagenet). Thank these researchers for sharing their great code! 
-
-
 
 ## Citation
 
@@ -100,8 +88,6 @@ If this code helps your research or project, please cite
   year={2020}
 }
 ```
-
-
 
 ## Contact
 
