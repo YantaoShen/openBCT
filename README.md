@@ -34,19 +34,19 @@ After you download these two datasets, extract them and make sure there are ./tr
 For training an old model without any regularization,
 
 ```shell
-python main.py your_dataset_dir --train-img-list imagenet_for_old.txt -a resnet18 
+python main.py your_dataset_dir --train-img-list imgnet_train_img_list_for_old.txt -a resnet18 
 ```
 
 For training a new model with infulence loss (old classifier regularization),
 
 ```shell
-python main.py your_dataset_dir --train-img-list imagenet_for_new.txt -a resnet50 --old-fc your_old_fc_weights_dir
+python main.py your_dataset_dir --train-img-list imgnet_train_img_list_for_new.txt -a resnet50 --old-fc your_old_fc_weights_dir
 ```
 
 For training a new model with L2 regression loss (one of the compared baseline),
 
 ```shell
-python main.py your_dataset_dir --train-img-list imagenet_for_new.txt -a resnet50 --old-arch resnet18 --old-checkpoint your_old_model_dir --old-fc your_old_fc_weights_dir --l2 --use-feat
+python main.py your_dataset_dir --train-img-list imgnet_train_img_list_for_new.txt -a resnet50 --old-arch resnet18 --old-checkpoint your_old_model_dir --old-fc your_old_fc_weights_dir --l2 --use-feat
 ```
 
 
