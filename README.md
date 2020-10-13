@@ -61,7 +61,7 @@ python main.py your_dataset_dir -a resnet50 --pretrained --checkpoint your_model
 
 ## Results
 
-Influence loss results on ImagNet are listed as below, More results are on the way.
+Influence loss results on ImagNet are listed as below. More results are on the way.
 
 | Old Model | New Model | Val Set | Top-1 Acc | Top-5 Acc |
 | :-------: | :-------: | :-----: | :-------: | :-------: |
