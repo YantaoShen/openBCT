@@ -2,17 +2,13 @@
 
 ## Introduction
 
-`OpenBCT` is a Non Official Reimplementation for [Towards Backward-Compatible Representation Learning](https://openaccess.thecvf.com/content_CVPR_2020/html/Shen_Towards_Backward-Compatible_Representation_Learning_CVPR_2020_paper.html) (CVPR 2020 oral)
-
-The code is based on [Open-ReID](https://github.com/Cysu/open-reid) and [Pytorch-ImageNet-Example](https://github.com/pytorch/examples/tree/master/imagenet). Thank these researchers for sharing their great code!
+`OpenBCT` is a Non Official Reimplementation for [Towards Backward-Compatible Representation Learning](https://openaccess.thecvf.com/content_CVPR_2020/html/Shen_Towards_Backward-Compatible_Representation_Learning_CVPR_2020_paper.html) (CVPR 2020 oral), which aims at achieving compatiblity across different models.
 
 ### Feature List
 
 - [x] Baselines for Backward Compatible Training
+- [x] Influence Loss with old classifier
 - [x] Pseudo old classifier generation
-- [ ] Results on ImageNet and Places365
-
-
 
 ## Requirements
 
@@ -68,6 +64,26 @@ For self test with single model,
 ```shell
 python main.py your_dataset_dir -a resnet50 --pretrained --checkpoint your_model_dir --use-feat -e
 ```
+
+
+
+## Results
+
+Influence loss results on ImagNet are listed as below, More results are on the way.
+
+| Old Model | New Model | Val Set | Top-1 Acc | Top-5 Acc |
+| :-------: | :-------: | :-----: | :-------: | :-------: |
+|resnet18 (100%) | resnet18 (100%) | ImageNet Val |     52.4%      |  74.4%         |
+|    resnet18 (100%)      |    resnet50-BCT (100%)      |    ImageNet Val    | 55.5% | 78.0% |
+| resnet50 (100%) | resnet50 (100%) | ImageNet Val | 62.0% | 80.7% |
+
+(x% denotes the training data usage amount)
+
+
+
+## Acknowledgement
+
+The code is based on [Open-ReID](https://github.com/Cysu/open-reid) and [Pytorch-ImageNet-Example](https://github.com/pytorch/examples/tree/master/imagenet). Thank these researchers for sharing their great code! 
 
 
 
