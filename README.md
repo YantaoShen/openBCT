@@ -50,7 +50,7 @@ python main.py your_dataset_dir --train-img-list imgnet_train_img_list_for_new.t
 For cross test between two models,
 
 ```shell
-python main.py your_dataset_dir -a resnet50 --pretrained --checkpoint your_new_model_dir --use-feat -e --cross-eval --old-arch resnet18 --old-checkpoint your_old_model_dir
+python main.py your_dataset_dir -a resnet50 --pretrained --checkpoint your_new_model_dir --old-fc your_old_fc_weights_dir --use-feat -e --cross-eval --old-arch resnet18 --old-checkpoint your_old_model_dir 
 ```
 
 For self test with single model,
@@ -61,7 +61,7 @@ python main.py your_dataset_dir -a resnet50 --pretrained --checkpoint your_model
 
 ## Results
 
-Influence loss results on ImagNet are listed as below. More results are on the way.
+Influence loss results on ImagNet are listed as below. Please be noted that, in testing, we use feature L2 distance for Top-k accuracy computing. More results are on the way.
 
 | Old Model | New Model | Val Set | Top-1 Acc | Top-5 Acc |
 | :-------: | :-------: | :-----: | :-------: | :-------: |
@@ -69,7 +69,7 @@ Influence loss results on ImagNet are listed as below. More results are on the w
 |    resnet18 (100%)      |    resnet50-BCT (100%)      |    ImageNet Val    | 55.5% | 78.0% |
 | resnet50 (100%) | resnet50 (100%) | ImageNet Val | 62.0% | 80.7% |
 
-(x% denotes the training data usage amount)
+In this table, x% denotes the training data usage amount. 
 
 ## Acknowledgement
 
