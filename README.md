@@ -65,9 +65,12 @@ Influence loss results on ImagNet are listed as below. Please be noted that, in 
 
 | Old Model | New Model | Val Set | Top-1 Acc | Top-5 Acc |
 | :-------: | :-------: | :-----: | :-------: | :-------: |
-|resnet18 (100%) | resnet18 (100%) | ImageNet Val |     52.4%      |  74.4%         |
-|    resnet18 (100%)      |    resnet50-BCT (100%)      |    ImageNet Val    | 55.5% | 78.0% |
-| resnet50 (100%) | resnet50 (100%) | ImageNet Val | 62.0% | 80.7% |
+|resnet18 (50%) | resnet18 (50%) | ImageNet Val |     39.5%     |  60.0%      |
+|    resnet18 (50%)     |    resnet50-BCT (100%)      |    ImageNet Val    | 42.2% | 65.5% |
+| resnet50 (100%) | resnet50 (100%) | ImageNet Val | 62.5% | 81.5% |
+| resnet18 (50%) | resnet18 (50%) | Places365 Val | 27.0% | 55.9% |
+| resnet18 (50%) | resnet50-BCT (100%) | Places365 Val | 27.5% | 57.8% |
+| resnet50 (100%) | resnet50 (100%) | Places365 Val | 35.1% | 64.0% |
 
 In this table, x% denotes the training data usage amount. 
 
