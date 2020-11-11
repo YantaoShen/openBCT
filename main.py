@@ -107,6 +107,8 @@ parser.add_argument('--l2', action='store_true',
                     help='use l2 loss for compatible learning')
 parser.add_argument('--val', action='store_true',
                     help='conduct validating when an epoch is finished')
+parser.add_argument('--triplet', action='store_true',
+                    help='use triplet loss for compatible learning')
 best_acc1 = 0.
 
 
@@ -159,6 +161,11 @@ def main_worker(gpu, ngpus_per_node, args):
             # For multiprocessing distributed training, rank needs to be the
             # global rank among all the processes
             args.rank = args.rank * ngpus_per_node + gpu
+            # When using a single GPU per process and per
+            # DistributedDataParallel, we need to divide the batch size
+            # ourselves based on the total number of GPUs we have
+            args.batch_size = int(args.batch_size / ngpus_per_node)
+            args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
     cudnn.benchmark = True
@@ -234,17 +241,22 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         print("=> creating model '{}'".format(args.arch))
         model = models.__dict__[args.arch](old_fc=args.old_fc,
-                                           use_feat=args.use_feat,
+                                           use_feat=args.use_feat or args.l2,
                                            num_classes=cls_num)
+    if args.old_fc is not None:
+        old_n = model.old_cls_num
+    else:
+        old_n = cls_num
 
     model = cudalize(model, ngpus_per_node, args)
 
-    if args.cross_eval or args.generate_cls or args.l2:
+    if args.cross_eval or args.generate_cls or args.l2 or args.triplet:
         print("=> using old model '{}'".format(args.old_arch))
         print("=> loading old model from '{}'".format(args.old_checkpoint))
-        old_model = models.__dict__[args.old_arch](use_feat=args.use_feat,
-                                                   num_classes=cls_num)
+        old_model = models.__dict__[args.old_arch](use_feat=True,
+                                                   num_classes=old_n)
         old_checkpoint = torch.load(args.old_checkpoint)
+
         oc_state_dict = OrderedDict()
         if 'state_dict' in old_checkpoint:
             old_checkpoint_dict = old_checkpoint['state_dict']
@@ -269,6 +281,7 @@ def main_worker(gpu, ngpus_per_node, args):
         criterion = nn.CrossEntropyLoss().cuda(args.gpu)
     else:
         criterion = nn.MSELoss().cuda(args.gpu)
+
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
@@ -340,7 +353,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, args,
-              old_model=old_model if args.l2 else None)
+              old_model=old_model if args.l2 or args.triplet else None)
 
         if args.val:
             # evaluate on validation set
@@ -390,6 +403,12 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
             len(train_loader),
             [batch_time, data_time, losses, old_losses, top1, top5],
             prefix="Epoch: [{}]".format(epoch))
+        if args.triplet:
+            tri_losses = AverageMeter('Triplet Loss', ':.4e')
+            progress = ProgressMeter(
+                len(train_loader),
+                [batch_time, data_time, losses, old_losses, tri_losses, top1, top5],
+                prefix="Epoch: [{}]".format(epoch))
     else:
         progress = ProgressMeter(
             len(train_loader),
@@ -398,7 +417,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
 
     # switch to train mode
     model.train()
-    if args.l2:
+    if args.l2 or args.triplet:
         old_model.eval()  # fix old model
 
     end = time.time()
@@ -413,9 +432,9 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
 
         # compute output
         if args.l2:
-            output = model(images)
-            old_output = old_model(images)
-            loss = criterion(output, old_output)
+            output_feat = model(images)
+            old_output_feat = old_model(images)
+            loss = criterion(output_feat, old_output_feat)
             losses.update(loss.item(), images.size(0))
             # compute gradient and do SGD step
             optimizer.zero_grad()
@@ -434,7 +453,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
             loss = criterion(output, target)
             old_loss = 0.
         else:
-            output, old_output = model(images)
+            output, old_output, output_feat = model(images)
             loss = criterion(output, target)
             valid_ind = []
             o_target = []
@@ -457,17 +476,37 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
             else:
                 old_loss = 0.
 
+            # if use triplet loss between new and old model
+            if args.triplet:
+                tri_criterion = nn.TripletMarginLoss().cuda(args.gpu)
+                pos_old_output_feat = old_model(images)
+                # find the hardest negative
+                n = target.size(0)
+                mask = target.expand(n, n).eq(target.expand(n, n).t())
+                dist = torch.pow(output_feat, 2).sum(dim=1, keepdim=True).expand(n, n) + \
+                       torch.pow(pos_old_output_feat, 2).sum(dim=1, keepdim=True).expand(n, n).t()
+                dist = dist - 2 * torch.mm(output_feat, pos_old_output_feat.t())
+                hardest_neg = []
+                for index in range(n):
+                    hardest_neg.append(pos_old_output_feat[dist[index][mask[index] == 0].argmin()])
+                hardest_neg = torch.stack(hardest_neg)
+                tri_loss = tri_criterion(output_feat, pos_old_output_feat, hardest_neg)
+
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
         losses.update(loss.item(), images.size(0))
         if args.old_fc is not None and len(valid_ind) != 0:
             old_losses.update(old_loss.item(), len(valid_ind))
+        if args.triplet:
+            tri_losses.update(tri_loss.item(), images.size(0))
         top1.update(acc1[0], images.size(0))
         top5.update(acc5[0], images.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
         loss = loss + old_loss
+        if args.triplet:
+            loss = loss + old_loss + tri_loss
         loss.backward()
         optimizer.step()
 
@@ -519,7 +558,7 @@ def validate(val_loader, model, criterion, args, old_model=None, cls_num=1000):
             if args.old_fc is None:
                 output = model(images)
             else:
-                output, _ = model(images)
+                output, _, _ = model(images)
             loss = criterion(output, target)
 
             # measure accuracy and record loss
@@ -559,11 +598,6 @@ def cudalize(model, ngpus_per_node, args):
         if args.gpu is not None:
             torch.cuda.set_device(args.gpu)
             model.cuda(args.gpu)
-            # When using a single GPU per process and per
-            # DistributedDataParallel, we need to divide the batch size
-            # ourselves based on the total number of GPUs we have
-            args.batch_size = int(args.batch_size / ngpus_per_node)
-            args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
             model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         else:
             model.cuda()

@@ -188,6 +188,7 @@ class ResNet(nn.Module):
             for para in self.old_fc.parameters():
                 para.requires_grad = False
             self.old_d = d
+            self.old_cls_num = n
         else:
             self.old_fc = None
 
@@ -262,13 +263,14 @@ class ResNet(nn.Module):
         score = self.fc(x)
         if self.old_fc is not None:
             if self.old_d <= x.size(1):
-                old_score = self.old_fc(x[:, :self.old_d])
+                x = x[:, :self.old_d]
+                old_score = self.old_fc(x)
             else:
                 z = torch.zeros(x.size(0), self.old_d-x.size(1))
                 z = z.cuda() if torch.cuda.is_available() else z
                 x = torch.cat((x, z), 1)
                 old_score = self.old_fc(x)
-            return score, old_score
+            return score, old_score, x
 
         return score
 
