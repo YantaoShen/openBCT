@@ -326,7 +326,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 batch_size=args.batch_size, shuffle=False,
                 num_workers=args.workers, pin_memory=False)
         s_clsfier = generate_pseudo_classifier(extract_loader, old_model,
-                                               args, cls_num=cls_num)
+                                               cls_num=cls_num)
         if not os.path.isdir('./results/'):
             os.mkdir('./results/')
         with open(f'results/synth_clsfier.npy', 'wb') as f:
