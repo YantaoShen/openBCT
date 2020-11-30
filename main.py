@@ -11,6 +11,7 @@ import numpy as np
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
@@ -104,6 +105,8 @@ parser.add_argument('-g', '--generate-cls', action='store_true',
 parser.add_argument('--train-img-list', default=None, type=str, metavar='PATH',
                     help='train images txt')
 parser.add_argument('--l2', action='store_true',
+                    help='use l2 loss for compatible learning')
+parser.add_argument('--lwf', action='store_true',
                     help='use l2 loss for compatible learning')
 parser.add_argument('--val', action='store_true',
                     help='conduct validating when an epoch is finished')
@@ -243,6 +246,12 @@ def main_worker(gpu, ngpus_per_node, args):
         model = models.__dict__[args.arch](old_fc=args.old_fc,
                                            use_feat=args.use_feat or args.l2,
                                            num_classes=cls_num)
+    if args.lwf:
+        # According to Learning without Forgetting original paper (Li et.al. 2016),
+        # the old classifier should be finetuned.
+        for para in model.old_fc.parameters():
+            para.requires_grad = True
+
     if args.old_fc is not None:
         old_n = model.old_cls_num
     else:
@@ -250,7 +259,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     model = cudalize(model, ngpus_per_node, args)
 
-    if args.cross_eval or args.generate_cls or args.l2 or args.triplet:
+    if args.old_checkpoint is not None:
         print("=> using old model '{}'".format(args.old_arch))
         print("=> loading old model from '{}'".format(args.old_checkpoint))
         old_model = models.__dict__[args.old_arch](use_feat=True,
@@ -275,6 +284,8 @@ def main_worker(gpu, ngpus_per_node, args):
         print('=> these keys in state dict are not in model: {}'.format(unfit_keys.unexpected_keys))
         print("=> loading done!")
         old_model = cudalize(old_model, ngpus_per_node, args)
+    else:
+        old_model = None
 
     # define loss function (criterion) and optimizer
     if not args.l2:
@@ -353,7 +364,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, args,
-              old_model=old_model if args.l2 or args.triplet else None)
+              old_model=old_model)
 
         if args.val:
             # evaluate on validation set
@@ -417,7 +428,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
 
     # switch to train mode
     model.train()
-    if args.l2 or args.triplet:
+    if old_model is not None:
         old_model.eval()  # fix old model
 
     end = time.time()
@@ -472,7 +483,16 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
                 valid_ind = range(len(target))
                 o_target = target
             if len(valid_ind) != 0:
-                old_loss = criterion(old_output[valid_ind], o_target)
+                if args.lwf:
+                    old_output_feat = old_model(images)
+                    if torch.cuda.is_available():
+                        pseudo_score = model.module.old_fc(old_output_feat)
+                    else:
+                        pseudo_score = model.old_fc(old_output_feat)
+                    pseudo_label = F.softmax(pseudo_score, dim=1)
+                    old_loss = -torch.sum(F.log_softmax(old_output[valid_ind]) * pseudo_label) / images.size(0)
+                else:
+                    old_loss = criterion(old_output[valid_ind], o_target)
             else:
                 old_loss = 0.
 
