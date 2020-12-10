@@ -112,6 +112,10 @@ parser.add_argument('--val', action='store_true',
                     help='conduct validating when an epoch is finished')
 parser.add_argument('--triplet', action='store_true',
                     help='use triplet loss for compatible learning')
+parser.add_argument('--contra', action='store_true',
+                    help='use contrastive loss for compatible learning')
+parser.add_argument('--temp', default=0.05, type=float,
+                    help='temperature for contrastive loss (default: 0.05)')
 best_acc1 = 0.
 
 
@@ -288,10 +292,7 @@ def main_worker(gpu, ngpus_per_node, args):
         old_model = None
 
     # define loss function (criterion) and optimizer
-    if not args.l2:
-        criterion = nn.CrossEntropyLoss().cuda(args.gpu)
-    else:
-        criterion = nn.MSELoss().cuda(args.gpu)
+    criterion = nn.CrossEntropyLoss().cuda(args.gpu)
 
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
@@ -420,6 +421,12 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
                 len(train_loader),
                 [batch_time, data_time, losses, old_losses, tri_losses, top1, top5],
                 prefix="Epoch: [{}]".format(epoch))
+        if args.contra:
+            contra_losses = AverageMeter('Contrastive Loss', ':.4e')
+            progress = ProgressMeter(
+                len(train_loader),
+                [batch_time, data_time, losses, old_losses, contra_losses, top1, top5],
+                prefix="Epoch: [{}]".format(epoch))
     else:
         progress = ProgressMeter(
             len(train_loader),
@@ -443,6 +450,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
 
         # compute output
         if args.l2:
+            criterion = nn.MSELoss().cuda(args.gpu)
             output_feat = model(images)
             old_output_feat = old_model(images)
             loss = criterion(output_feat, old_output_feat)
@@ -512,6 +520,23 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
                 hardest_neg = torch.stack(hardest_neg)
                 tri_loss = tri_criterion(output_feat, pos_old_output_feat, hardest_neg)
 
+            # if use contrastive loss between old and new model
+            if args.contra:
+                old_output_feat = old_model(images)
+                n = target.size(0)
+                contra_loss = 0.
+                old_output_feat = F.normalize(old_output_feat, dim=1)
+                output_feat = F.normalize(output_feat, dim=1)
+                for index in range(n):
+                    pos_score = torch.mm(output_feat[index].unsqueeze(0), old_output_feat[index].unsqueeze(0).t())
+                    neg_scores = torch.mm(output_feat[index].unsqueeze(0), old_output_feat[target[index] != target].t())
+                    all_scores = torch.cat((pos_score, neg_scores), 1)
+                    all_scores /= args.temp
+                    # all positive samples are placed at 0-th position
+                    p_label = torch.empty(1, dtype=torch.long).zero_().cuda()
+                    contra_loss += criterion(all_scores, p_label)
+                contra_loss /= n
+
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
         losses.update(loss.item(), images.size(0))
@@ -519,6 +544,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
             old_losses.update(old_loss.item(), len(valid_ind))
         if args.triplet:
             tri_losses.update(tri_loss.item(), images.size(0))
+        if args.contra:
+            contra_losses.update(contra_loss.item(), images.size(0))
         top1.update(acc1[0], images.size(0))
         top5.update(acc5[0], images.size(0))
 
@@ -527,6 +554,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
         loss = loss + old_loss
         if args.triplet:
             loss = loss + old_loss + tri_loss
+        if args.contra:
+            loss = contra_loss
         loss.backward()
         optimizer.step()
 
