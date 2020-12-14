@@ -124,7 +124,7 @@ class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None, old_fc=None, use_feat=False):
+                 norm_layer=None, old_fc=None, use_feat=False, norm_sm=False):
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -155,8 +155,14 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.norm_sm = norm_sm
         if num_classes != 0:
             self.fc = nn.Linear(512 * block.expansion, num_classes)
+            if self.norm_sm:
+                self.kernel = nn.Parameter(torch.Tensor(512 * block.expansion, num_classes))
+                # initial kernel
+                self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
+                self.s = 30.  # see normface https://arxiv.org/abs/1704.06369
         if old_fc is not None:
             if old_fc.endswith('.npy'):
                 # loaded weights should be n * d, n: num of classes, d: feature dimension
@@ -260,7 +266,14 @@ class ResNet(nn.Module):
             else:
                 return x
 
-        score = self.fc(x)
+        if self.norm_sm:
+            normed_kernel = torch.nn.functional.normalize(self.kernel, dim=1)
+            output_feat = torch.nn.functional.normalize(x, dim=1)
+            cos_theta = torch.mm(output_feat, normed_kernel)
+            cos_theta = cos_theta.clamp(-1, 1)  # for numerical stability
+            score = cos_theta * self.s
+        else:
+            score = self.fc(x)
         if self.old_fc is not None:
             if self.old_d <= x.size(1):
                 x = x[:, :self.old_d]

@@ -114,6 +114,8 @@ parser.add_argument('--triplet', action='store_true',
                     help='use triplet loss for compatible learning')
 parser.add_argument('--contra', action='store_true',
                     help='use contrastive loss for compatible learning')
+parser.add_argument('--use-norm-sm', action='store_true',
+                    help='use normed softmax for training')
 parser.add_argument('--temp', default=0.05, type=float,
                     help='temperature for contrastive loss (default: 0.05)')
 best_acc1 = 0.
@@ -227,7 +229,8 @@ def main_worker(gpu, ngpus_per_node, args):
         print("=> loading model from '{}'".format(args.checkpoint))
         model = models.__dict__[args.arch](old_fc=args.old_fc,
                                            use_feat=args.use_feat,
-                                           num_classes=cls_num)
+                                           num_classes=cls_num,
+                                           norm_sm=args.use_norm_sm)
         checkpoint = torch.load(args.checkpoint)
         c_state_dict = OrderedDict()
         if 'state_dict' in checkpoint:
@@ -249,7 +252,8 @@ def main_worker(gpu, ngpus_per_node, args):
         print("=> creating model '{}'".format(args.arch))
         model = models.__dict__[args.arch](old_fc=args.old_fc,
                                            use_feat=args.use_feat or args.l2,
-                                           num_classes=cls_num)
+                                           num_classes=cls_num,
+                                           norm_sm=args.use_norm_sm)
     if args.lwf:
         # According to Learning without Forgetting original paper (Li et.al. 2016),
         # the old classifier should be finetuned.
@@ -553,7 +557,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
         optimizer.zero_grad()
         loss = loss + old_loss
         if args.triplet:
-            loss = loss + old_loss + tri_loss
+            loss = tri_loss
         if args.contra:
             loss = contra_loss
         loss.backward()
