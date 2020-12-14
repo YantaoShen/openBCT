@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 from torch.hub import load_state_dict_from_url
 
@@ -257,14 +258,14 @@ class ResNet(nn.Module):
         if not self.training or self.use_feat:
             if self.old_fc is not None:
                 if self.old_d <= x.size(1):
-                    return x[:, :self.old_d]
+                    return F.normalize(x[:, :self.old_d], dim=1)
                 else:
                     z = torch.zeros(x.size(0), self.old_d - x.size(1))
                     z = z.cuda() if torch.cuda.is_available() else z
                     x = torch.cat((x, z), 1)
-                    return x
+                    return F.normalize(x, dim=1)
             else:
-                return x
+                return F.normalize(x, dim=1)
 
         if self.norm_sm:
             normed_kernel = torch.nn.functional.normalize(self.kernel, dim=1)
