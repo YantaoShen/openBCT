@@ -61,18 +61,22 @@ python main.py your_dataset_dir -a resnet50 --pretrained --checkpoint your_model
 
 ## Results
 
-Influence loss results on ImagNet are listed as below. Please be noted that, in testing, we use feature L2 distance for Top-k accuracy computing. More results are on the way.
+Influence loss results on ImagNet are listed as below. Please be noted that, in testing, we use **feature L2 distance** for Top-k accuracy computing. More results are on the way.
 
 | Old Model | New Model | Val Set | Top-1 Acc | Top-5 Acc |
 | :-------: | :-------: | :-----: | :-------: | :-------: |
 |resnet18 (50%) | resnet18 (50%) | ImageNet Val |     39.5%     |  60.0%      |
 |    resnet18 (50%)     |    resnet50-BCT (100%)      |    ImageNet Val    | 42.2% | 65.5% |
 | resnet50 (100%) | resnet50 (100%) | ImageNet Val | 62.5% | 81.5% |
-| resnet50-BCT (100%) | resnet50-BCT (100%) | ImageNet Val  |   55.6%   |   76.6%   |
-|   resnet18 (50%)    |   resnet18 (50%)    | Places365 Val |   27.0%   |   55.9%   |
-|   resnet18 (50%)    | resnet50-BCT (100%) | Places365 Val |   27.5%   |   57.8%   |
-|   resnet50 (100%)   |   resnet50 (100%)   | Places365 Val |   35.1%   |   64.0%   |
-| resnet50-BCT (100%) | resnet50-BCT (100%) | Places365 Val | 32.9% | 62.2% |
+| resnet18 (50%)  | resnet50-L2 (100%) | ImageNet Val | 13.0% | 32.8% |
+| resnet18 (50%) | resnet50-BCT (100%) | ImageNet Val  |   55.6%   |   76.6%   |
+
+|    Old Model    |      New Model      |    Val Set    | Top-1 Acc | Top-5 Acc |
+| :-------------: | :-----------------: | :-----------: | :-------: | :-------: |
+| resnet18 (50%)  |   resnet18 (50%)    | Places365 Val |   27.0%   |   55.9%   |
+| resnet18 (50%)  | resnet50-BCT (100%) | Places365 Val |   27.5%   |   57.8%   |
+| resnet50 (100%) |   resnet50 (100%)   | Places365 Val |   35.1%   |   64.0%   |
+| resnet18 (50%)  | resnet50-BCT (100%) | Places365 Val |   32.9%   |   62.2%   |
 
 In this table, x% denotes the training data usage amount.  
 
