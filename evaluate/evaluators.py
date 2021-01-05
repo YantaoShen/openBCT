@@ -89,7 +89,7 @@ def evaluate_all(distmat, query=None, gallery=None,
         print('Mean AP: {:4.1%}'.format(meanap))
 
     # Compute CMC scores
-    cmc_scores = cmc(distmat, query_ids, gallery_ids,
+    cmc_scores = cmc(distmat, query_ids, gallery_ids, topk=5,
                      single_gallery_shot=False,
                      first_match_break=True)
 

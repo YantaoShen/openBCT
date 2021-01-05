@@ -256,9 +256,10 @@ def main_worker(gpu, ngpus_per_node, args):
                                            norm_sm=args.use_norm_sm)
     if args.lwf:
         # According to Learning without Forgetting original paper (Li et.al. 2016),
-        # the old classifier should be finetuned.
+        # the old classifier should be finetuned. However, it will not work for BCT.
+        # So we freeze the old classifier.
         for para in model.old_fc.parameters():
-            para.requires_grad = True
+            para.requires_grad = False
 
     if args.old_fc is not None:
         old_n = model.old_cls_num
