@@ -2,7 +2,7 @@
 
 ## Introduction
 
-`OpenBCT` is a Non Official Reimplementation for [Towards Backward-Compatible Representation Learning]https://arxiv.org/abs/2003.11942) (CVPR 2020 oral), which aims at achieving compatibility across different models.
+`OpenBCT` is a Non Official Reimplementation for [Towards Backward-Compatible Representation Learning](https://arxiv.org/abs/2003.11942) (CVPR 2020 oral), which aims at achieving compatibility across different models.
 
 ### Feature List
 
