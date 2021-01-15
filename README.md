@@ -67,8 +67,11 @@ Influence loss results on ImagNet are listed as below. Please be noted that, in 
 | :-------: | :-------: | :-----: | :-------: | :-------: |
 |resnet18 (50%) | resnet18 (50%) | ImageNet Val |     39.5%     |  60.0%      |
 |    resnet18 (50%)     |    resnet50-BCT (100%)      |    ImageNet Val    | 42.2% | 65.5% |
+|    resnet18 (50%)     |    resnet50-BCT-normed-clsfier (100%)      |    ImageNet Val    | 46.8% | 66.7% |
 | resnet50 (100%) | resnet50 (100%) | ImageNet Val | 62.5% | 81.5% |
 | resnet18 (50%)  | resnet50-L2 (100%) | ImageNet Val | 13.0% | 32.8% |
+| resnet18 (50%)  | resnet50-Triplet (100%) | ImageNet Val | 42.9% | 63.3% |
+| resnet18 (50%)  | resnet50-Contra (100%) | ImageNet Val | 42.7% | 63.2% |
 | resnet18 (50%) | resnet50-BCT (100%) | ImageNet Val  |   55.6%   |   76.6%   |
 
 |    Old Model    |      New Model      |    Val Set    | Top-1 Acc | Top-5 Acc |
