@@ -59,6 +59,12 @@ For self test with single model,
 python main.py your_dataset_dir -a resnet50 --pretrained --checkpoint your_model_dir --use-feat -e
 ```
 
+## Train with DDP 
+```shell
+python main.py your_dataset_dir  --dist-url 'tcp://127.0.0.1:FREEPORT' --dist-backend 'nccl' --multiprocessing-distributed --world-size 1 --rank 0  --train-img-list imgnet_train_img_list_for_new.txt -a resnet50 --old-fc your_old_fc_weights_dir --n2o-map ./imgnet_new2old_map.npy
+```
+Note: This is for single machine, multi GPUs
+
 ## Results
 
 Influence loss results on ImagNet are listed as below. Please be noted that, in testing, we use **feature L2 distance** for Top-k accuracy computing. More results are on the way.
