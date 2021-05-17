@@ -43,9 +43,10 @@ def img_list_dataloader(traindir, img_list, train_transform, distributed=False,
                         batch_size=64, num_workers=32, pin_memory=True):
     train_set, class_num = get_train_dataset(train_transform, traindir, img_list)
     if distributed:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_set)
+        train_set_index = range(len(train_set))
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_set_index)
     else:
         train_sampler = None
     loader = DataLoader(train_set, batch_size=batch_size, shuffle=(train_sampler is None),
                         pin_memory=pin_memory, num_workers=num_workers, sampler=train_sampler)
-    return loader, class_num
+    return loader, class_num, train_sampler

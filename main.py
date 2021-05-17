@@ -193,18 +193,17 @@ def main_worker(gpu, ngpus_per_node, args):
     ])
     train_dataset = datasets.ImageFolder(traindir, train_trans)
 
-    if args.distributed:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-    else:
-        train_sampler = None
-
     if args.train_img_list is None:
+        if args.distributed:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+        else:
+            train_sampler = None
         train_loader = torch.utils.data.DataLoader(
             train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
             num_workers=args.workers, pin_memory=True, sampler=train_sampler)
         cls_num = len([d.name for d in os.scandir(traindir) if d.is_dir()])
     else:
-        train_loader, cls_num = img_list_dataloader(traindir, args.train_img_list, train_trans,
+        train_loader, cls_num, train_sampler = img_list_dataloader(traindir, args.train_img_list, train_trans,
                                                     args.distributed, batch_size=args.batch_size,
                                                     num_workers=args.workers)
         print('==> Using {} for loading data!'.format(args.train_img_list))
