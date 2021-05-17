@@ -251,7 +251,7 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         print("=> creating model '{}'".format(args.arch))
         model = models.__dict__[args.arch](old_fc=args.old_fc,
-                                           use_feat=args.use_feat or args.l2,
+                                           use_feat=args.use_feat,
                                            num_classes=cls_num,
                                            norm_sm=args.use_norm_sm)
     if args.lwf:
@@ -272,7 +272,7 @@ def main_worker(gpu, ngpus_per_node, args):
         print("=> using old model '{}'".format(args.old_arch))
         print("=> loading old model from '{}'".format(args.old_checkpoint))
         old_model = models.__dict__[args.old_arch](use_feat=True,
-                                                   num_classes=old_n)
+                                                   num_classes=0)
         old_checkpoint = torch.load(args.old_checkpoint)
 
         oc_state_dict = OrderedDict()
@@ -369,7 +369,7 @@ def main_worker(gpu, ngpus_per_node, args):
         adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch, args,
+        train(train_loader, model, criterion, optimizer, epoch, args, ngpus_per_node,
               old_model=old_model)
 
         if args.val:
@@ -406,7 +406,7 @@ def main_worker(gpu, ngpus_per_node, args):
                                                            ]))
 
 
-def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None):
+def train(train_loader, model, criterion, optimizer, epoch, args, ngpus_per_node, old_model=None):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
@@ -432,6 +432,12 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
                 len(train_loader),
                 [batch_time, data_time, losses, old_losses, contra_losses, top1, top5],
                 prefix="Epoch: [{}]".format(epoch))
+        if args.l2:
+            l2_losses = AverageMeter('L2 Loss', ':.4e')
+            progress = ProgressMeter(
+                len(train_loader),
+                [batch_time, data_time, losses, old_losses, l2_losses, top1, top5],
+                prefix="Epoch: [{}]".format(epoch))
     else:
         progress = ProgressMeter(
             len(train_loader),
@@ -452,25 +458,6 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
             images = images.cuda(args.gpu, non_blocking=True)
         if torch.cuda.is_available():
             target = target.cuda(args.gpu, non_blocking=True)
-
-        # compute output
-        if args.l2:
-            criterion = nn.MSELoss().cuda(args.gpu)
-            output_feat = model(images)
-            old_output_feat = old_model(images)
-            loss = criterion(output_feat, old_output_feat)
-            losses.update(loss.item(), images.size(0))
-            # compute gradient and do SGD step
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            if i % args.print_freq == 0:
-                progress.display(i)
-            continue
 
         if args.old_fc is None:
             output = model(images)
@@ -533,14 +520,27 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
                 old_output_feat = F.normalize(old_output_feat, dim=1)
                 output_feat = F.normalize(output_feat, dim=1)
                 for index in range(n):
-                    pos_score = torch.mm(output_feat[index].unsqueeze(0), old_output_feat[index].unsqueeze(0).t())
+                    # This follows supervised contrastive learning (By Khosla & Teterwak et.al. NIPS 2020)
+                    contra_loss_inside = 0.
+                    pos_scores = torch.mm(output_feat[index].unsqueeze(0), old_output_feat[target[index] == target].t())
                     neg_scores = torch.mm(output_feat[index].unsqueeze(0), old_output_feat[target[index] != target].t())
-                    all_scores = torch.cat((pos_score, neg_scores), 1)
-                    all_scores /= args.temp
-                    # all positive samples are placed at 0-th position
-                    p_label = torch.empty(1, dtype=torch.long).zero_().cuda()
-                    contra_loss += criterion(all_scores, p_label)
+                    pos_set_size = pos_scores.size(0)
+                    for pos_score in pos_scores:
+                        all_scores = torch.cat((pos_score.unsqueeze(0), neg_scores), 1)
+                        all_scores /= args.temp
+                        # all positive samples are placed at 0-th position
+                        p_label = torch.empty(1, dtype=torch.long).zero_().cuda()
+                        contra_loss_inside += criterion(all_scores, p_label)
+                    contra_loss += contra_loss_inside / pos_set_size
                 contra_loss /= n
+
+            # if use l2 loss between new and old model
+            if args.l2:
+                l2_criterion = nn.MSELoss().cuda(args.gpu)
+                old_output_feat = old_model(images)
+                old_output_feat = F.normalize(old_output_feat, dim=1)
+                output_feat = F.normalize(output_feat, dim=1)
+                l2_loss = l2_criterion(output_feat, old_output_feat)
 
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
@@ -551,16 +551,21 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
             tri_losses.update(tri_loss.item(), images.size(0))
         if args.contra:
             contra_losses.update(contra_loss.item(), images.size(0))
+        if args.l2:
+            l2_losses.update(l2_loss.item(), images.size(0))
         top1.update(acc1[0], images.size(0))
         top5.update(acc5[0], images.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
-        loss = loss + old_loss
         if args.triplet:
-            loss = tri_loss
-        if args.contra:
-            loss = contra_loss
+            loss = loss + tri_loss
+        elif args.contra:
+            loss = loss + contra_loss
+        elif args.l2:
+            loss = loss + l2_loss
+        else:
+            loss = loss + old_loss
         loss.backward()
         optimizer.step()
 
@@ -569,7 +574,14 @@ def train(train_loader, model, criterion, optimizer, epoch, args, old_model=None
         end = time.time()
 
         if i % args.print_freq == 0:
-            progress.display(i)
+            if args.multiprocessing_distributed:
+                if args.rank % ngpus_per_node == 0:
+                    progress.display(i)
+                else:
+                    pass
+            else:
+                progress.display(i)
+
 
 
 def validate(val_loader, model, criterion, args, old_model=None, cls_num=1000):
@@ -652,7 +664,7 @@ def cudalize(model, ngpus_per_node, args):
         if args.gpu is not None:
             torch.cuda.set_device(args.gpu)
             model.cuda(args.gpu)
-            model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
+            model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         else:
             model.cuda()
             # DistributedDataParallel will divide and allocate batch_size to all
