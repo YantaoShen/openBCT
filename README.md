@@ -42,7 +42,7 @@ python main.py your_dataset_dir --train-img-list imgnet_train_img_list_for_new.t
 For training a new model with L2 regression loss (one of the compared baseline),
 
 ```shell
-python main.py your_dataset_dir --train-img-list imgnet_train_img_list_for_new.txt -a resnet50 --old-arch resnet18 --old-checkpoint your_old_model_dir --old-fc your_old_fc_weights_dir --l2 --use-feat
+python main.py your_dataset_dir --train-img-list imgnet_train_img_list_for_new.txt -a resnet50 --old-arch resnet18 --old-checkpoint your_old_model_dir --l2 --use-feat
 ```
 
 ## Test
