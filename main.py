@@ -207,9 +207,10 @@ def main_worker(gpu, ngpus_per_node, args):
                                                     args.distributed, batch_size=args.batch_size,
                                                     num_workers=args.workers)
         print('==> Using {} for loading data!'.format(args.train_img_list))
+    print('==> Data loading is done!')
     if args.use_feat or args.cross_eval:
         cls_num = 0
-        print('==> Using Feature distance, no classifier will be used!')
+        print('==> Using feature distance, no classifier will be used!')
     else:
         print('==> Total {} classes!'.format(cls_num))
 
@@ -260,11 +261,6 @@ def main_worker(gpu, ngpus_per_node, args):
         for para in model.old_fc.parameters():
             para.requires_grad = False
 
-    if args.old_fc is not None:
-        old_n = model.old_cls_num
-    else:
-        old_n = cls_num
-
     model = cudalize(model, ngpus_per_node, args)
 
     if args.old_checkpoint is not None:
@@ -273,7 +269,6 @@ def main_worker(gpu, ngpus_per_node, args):
         old_model = models.__dict__[args.old_arch](use_feat=True,
                                                    num_classes=0)
         old_checkpoint = torch.load(args.old_checkpoint)
-
         oc_state_dict = OrderedDict()
         if 'state_dict' in old_checkpoint:
             old_checkpoint_dict = old_checkpoint['state_dict']
@@ -431,17 +426,18 @@ def train(train_loader, model, criterion, optimizer, epoch, args, ngpus_per_node
                 len(train_loader),
                 [batch_time, data_time, losses, old_losses, contra_losses, top1, top5],
                 prefix="Epoch: [{}]".format(epoch))
+    else:
         if args.l2:
             l2_losses = AverageMeter('L2 Loss', ':.4e')
             progress = ProgressMeter(
                 len(train_loader),
-                [batch_time, data_time, losses, old_losses, l2_losses, top1, top5],
+                [batch_time, data_time, l2_losses],
                 prefix="Epoch: [{}]".format(epoch))
-    else:
-        progress = ProgressMeter(
-            len(train_loader),
-            [batch_time, data_time, losses, top1, top5],
-            prefix="Epoch: [{}]".format(epoch))
+        else:
+            progress = ProgressMeter(
+                len(train_loader),
+                [batch_time, data_time, losses, top1, top5],
+                prefix="Epoch: [{}]".format(epoch))
 
     # switch to train mode
     model.train()
@@ -459,9 +455,23 @@ def train(train_loader, model, criterion, optimizer, epoch, args, ngpus_per_node
             target = target.cuda(args.gpu, non_blocking=True)
 
         if args.old_fc is None:
-            output = model(images)
-            loss = criterion(output, target)
-            old_loss = 0.
+            # if use l2 loss between new and old model
+            if args.l2:
+                l2_criterion = nn.MSELoss().cuda(args.gpu)
+                output_feat = model(images)
+                old_output_feat = old_model(images)
+                old_dim = old_output_feat.size(1)
+                new_dim = output_feat.size(1)
+                if old_dim < new_dim:
+                    output_feat = F.normalize(output_feat[:, :old_dim], dim=1)
+                if old_dim > new_dim:
+                    old_output_feat = F.normalize(old_output_feat[:, :new_dim], dim=1)
+                l2_loss = l2_criterion(output_feat, old_output_feat)
+                loss = 0.
+            else:
+                output = model(images)
+                loss = criterion(output, target)
+                old_loss = 0.
         else:
             output, old_output, output_feat = model(images)
             loss = criterion(output, target)
@@ -533,27 +543,20 @@ def train(train_loader, model, criterion, optimizer, epoch, args, ngpus_per_node
                     contra_loss += contra_loss_inside / pos_set_size
                 contra_loss /= n
 
-            # if use l2 loss between new and old model
-            if args.l2:
-                l2_criterion = nn.MSELoss().cuda(args.gpu)
-                old_output_feat = old_model(images)
-                old_output_feat = F.normalize(old_output_feat, dim=1)
-                output_feat = F.normalize(output_feat, dim=1)
-                l2_loss = l2_criterion(output_feat, old_output_feat)
-
-        # measure accuracy and record loss
-        acc1, acc5 = accuracy(output, target, topk=(1, 5))
-        losses.update(loss.item(), images.size(0))
-        if args.old_fc is not None and len(valid_ind) != 0:
-            old_losses.update(old_loss.item(), len(valid_ind))
-        if args.triplet:
-            tri_losses.update(tri_loss.item(), images.size(0))
-        if args.contra:
-            contra_losses.update(contra_loss.item(), images.size(0))
         if args.l2:
             l2_losses.update(l2_loss.item(), images.size(0))
-        top1.update(acc1[0], images.size(0))
-        top5.update(acc5[0], images.size(0))
+        else:
+            # measure accuracy and record loss
+            acc1, acc5 = accuracy(output, target, topk=(1, 5))
+            losses.update(loss.item(), images.size(0))
+            if args.old_fc is not None and len(valid_ind) != 0:
+                old_losses.update(old_loss.item(), len(valid_ind))
+            if args.triplet:
+                tri_losses.update(tri_loss.item(), images.size(0))
+            if args.contra:
+                contra_losses.update(contra_loss.item(), images.size(0))
+            top1.update(acc1[0], images.size(0))
+            top5.update(acc5[0], images.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -562,7 +565,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, ngpus_per_node
         elif args.contra:
             loss = loss + contra_loss
         elif args.l2:
-            loss = loss + l2_loss
+            loss = l2_loss
         else:
             loss = loss + old_loss
         loss.backward()
@@ -580,7 +583,6 @@ def train(train_loader, model, criterion, optimizer, epoch, args, ngpus_per_node
                     pass
             else:
                 progress.display(i)
-
 
 
 def validate(val_loader, model, criterion, args, old_model=None, cls_num=1000):
