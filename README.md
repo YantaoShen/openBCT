@@ -60,9 +60,22 @@ python main.py your_dataset_dir -a resnet50 --pretrained --checkpoint your_model
 ```
 
 ## Train with DDP 
+
+For training an old model without any regularization,
+
+```shell
+python main.py your_dataset_dir --dist-url 'tcp://127.0.0.1:FREEPORT' --dist-backend 'nccl' --multiprocessing-distributed --world-size 1 --rank 0  --train-img-list imgnet_train_img_list_for_old.txt -a resnet18 
+```
+
+For training a new model with infulence loss,
 ```shell
 python main.py your_dataset_dir  --dist-url 'tcp://127.0.0.1:FREEPORT' --dist-backend 'nccl' --multiprocessing-distributed --world-size 1 --rank 0  --train-img-list imgnet_train_img_list_for_new.txt -a resnet50 --old-fc your_old_fc_weights_dir --n2o-map ./imgnet_new2old_map.npy
 ```
+For training a new model with L2 regression loss (one of the compared baseline),
+```shell
+python main.py your_dataset_dir  --dist-url 'tcp://127.0.0.1:FREEPORT' --dist-backend 'nccl' --multiprocessing-distributed --world-size 1 --rank 0 --train-img-list imgnet_train_img_list_for_new.txt -a resnet50 --old-arch resnet18 --old-checkpoint your_old_model_dir --l2 --use-feat
+```
+
 Note: This is for single machine, multi GPUs
 
 ## Results
